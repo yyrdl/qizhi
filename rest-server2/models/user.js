@@ -28,15 +28,18 @@
 
 const co = require("zco");
 const crypto = require("crypto");
-const config = require("../config");
+const etcdConfig = require("../config").etcd;
 const etcd2 = require("../service/db").etcd2;
 const logger = require("../service/logger");
 const VirtualCluster = require("./vc");
 
 function encrypt(username, password) {
   return co.brief(function*(resume) {
+
     let iterations = 10000;
+
     let keylen = 64;
+
     let salt = crypto.createHash("md5").update(username).digest("hex");
 
     let [err, derivedKey] = yield crypto.pbkdf2(password,salt,iterations,keylen,"sha512",resume);
@@ -135,6 +138,7 @@ const setUserAdmin = function(admin,username){
  
 const remove = function (username){
     return co.brief(function*(resume){
+
         if("undefined" === typeof username){
             throw new Error("user does not exist");
         }
@@ -190,7 +194,6 @@ const updateUserVc = function(username,virtualClusters){
             updateVcList = Object.keys(vcList);
         }else{
             updateVcList = virtualClusters.trim().split(",").filter(updateVc=> updateVc !=="");
-
         }
 
         let addUserWithInvalidVc = false;
@@ -306,7 +309,7 @@ const prepareStoragePath = () => {
     if (errMsg) {
       throw new Error("build storage path failed");
     } else {
-      setDefaultAdmin();
+      setDefaultAdmin()();
     }
   });
 };
