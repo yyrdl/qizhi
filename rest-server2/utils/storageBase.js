@@ -14,54 +14,27 @@
 // NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
 // DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-//
-//
+// 
+// 
 // Copyright (c) Peking University 2018
-//
+// 
 // The software is released under the Open-Intelligence Open Source License V1.0.
 // The copyright owner promises to follow "Open-Intelligence Open Source Platform
-// Management Regulation V1.0", which is provided by The New Generation of
+// Management Regulation V1.0", which is provided by The New Generation of 
 // Artificial Intelligence Technology Innovation Strategic Alliance (the AITISA).
 
 // module dependencies
-const fse = require("fs-extra");
-const dotenv = require("dotenv");
-const constant = require("../constant");
-
-require.extensions[".mustache"] = (module, filename) => {
-  module.exports = fse.readFileSync(filename, "utf8");
-};
-
-dotenv.config();
-
-/**
- * global config
- */
-const config = {};
-
-config.env = process.env.NODE_ENV || constant.env.DEV;
-
-/**
- * config for etcd
- *  */
-config.etcd = require("./etcd");
-
-/***
- *
- * config for log client (winston)
- */
-config.log = require("./log");
-
-/**
- * config for express server
- */
-config.server = require("./server");
 
 
-/*** 
- * config for yarn
-*/
-
-config.yarn = require("./yarn");
-
-module.exports = config;
+class StorageBase {
+    get(key, options, callback) { }
+  
+    set(key, value, options, callback) { }
+  
+    delete(key, options, callback) { }
+  
+    has(key, options, callback) { }
+  }
+  
+  module.exports = StorageBase;
+  
