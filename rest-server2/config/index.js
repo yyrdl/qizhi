@@ -37,31 +37,30 @@ dotenv.config();
 /**
  * global config
  */
-const config = {};
+ 
 
-config.env = process.env.NODE_ENV || constant.env.DEV;
+exports.env = process.env.NODE_ENV || constant.env.DEV;
 
 /**
  * config for etcd
  *  */
-config.etcd = require("./etcd");
+exports.etcd = require("./etcd");
 
 /***
  *
  * config for log client (winston)
  */
-config.log = require("./log");
+exports.log = require("./log");
 
 /**
  * config for express server
  */
-config.server = require("./server");
+exports.server = require("./server");
 
 
 /*** 
  * config for yarn
 */
 
-config.yarn = require("./yarn");
+exports.yarn = require("./yarn");
 
-module.exports = config;

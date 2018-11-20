@@ -33,7 +33,7 @@ const constant = require("../constant");
 
  
 
-const getCapacitySchedulerInfo = function(queueInfo) {
+const _getCapacitySchedulerInfo = function(queueInfo) {
   let queues = {};
   function traverse(queueInfo, queueDict) {
     if (queueInfo.type === "capacitySchedulerLeafQueueInfo") {// enum type？？？
@@ -67,7 +67,7 @@ const getVcList = function(){
         let schedulerInfo = resJson.scheduler.schedulerInfo;
 
         if("capacityScheduler" === schedulerInfo.type){
-            return getCapacitySchedulerInfo(schedulerInfo);
+            return _getCapacitySchedulerInfo(schedulerInfo);
         }
 
         logger.warn(`unsupported scheduler type: ${schedulerInfo.type}`);

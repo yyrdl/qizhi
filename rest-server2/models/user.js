@@ -28,10 +28,14 @@
 
 const co = require("zco");
 const crypto = require("crypto");
+const config = require("../config");
 const etcdConfig = require("../config").etcd;
 const etcd2 = require("../service/db").etcd2;
+const constant = require("../constant");
 const logger = require("../service/logger");
 const VirtualCluster = require("./vc");
+
+
 
 /*** 
  * @param {String} username
@@ -343,7 +347,7 @@ const prepareStoragePath = () => {
   });
 };
 
-if (config.env !== "test") {
+if (config.env !== constant.env.TEST) {
   etcd2.has(etcdConfig.storagePath(), null, (errMsg, res) => {
     if (!res) {
       prepareStoragePath();
