@@ -33,6 +33,12 @@ const etcd2 = require("../service/db").etcd2;
 const logger = require("../service/logger");
 const VirtualCluster = require("./vc");
 
+/*** 
+ * @param {String} username
+ * @param {String} password
+ * @return {String}
+ * @api public
+*/
 function encrypt(username, password) {
   return co.brief(function*(resume) {
 
@@ -51,7 +57,14 @@ function encrypt(username, password) {
     return derivedKey.toString("hex");
   });
 }
-
+/*** 
+ * @param {String} username
+ * @param {String} password
+ * @param {Boolean} admin
+ * @param {Boolean} modify
+ * @return {Boolean}
+ * @api public
+*/
 const update = function(username, password, admin, modify) {
   return co.brief(function*(resume) {
 
@@ -80,16 +93,12 @@ const update = function(username, password, admin, modify) {
       [errMsg, res] = yield etcd2.set(etcdConfig.userPasswdPath(username),derivedKey,{ prevExist: true },resume);
 
       if (errMsg) {
-        logger.warn(
-          "modify %s password failed. error message:%s",
-          etcdConfig.userPasswdPath(username),
-          errMsg
-        );
+        logger.warn("modify %s password failed. error message:%s",etcdConfig.userPasswdPath(username),errMsg);
         throw errMsg;
       }
 
       if (undefined != admin) {
-        return yield setUserAdmin(admin, username);
+        return yield _setUserAdmin(admin, username);
       }
 
       return true;
@@ -111,23 +120,24 @@ const update = function(username, password, admin, modify) {
       throw errMsg;
     }
 
-    return yield setUserAdmin(admin,username);
+    return yield _setUserAdmin(admin,username);
   });
 };
-
-const setUserAdmin = function(admin,username){
+/*** 
+ * @param {Boolean} admin
+ * @param {String} username
+ * @return {Boolean}
+ * @api private
+*/
+const _setUserAdmin = function(admin,username){
     return co.brief(function*(resume){
 
-        let isAdmin = 'undefined' === typeof admin ? false:"admin";
+        let isAdmin = 'undefined' === typeof admin ? false:admin;
 
         let [errMsg] = yield etcd2.set(etcdConfig.userAdminPath(username),isAdmin,null,resume);
 
         if(errMsg){
-            logger.warn(
-                "set %s admin failed. error message:%s",
-                etcdConfig.userAdminPath(username),
-                errMsg
-            );
+            logger.warn("set %s admin failed. error message:%s",etcdConfig.userAdminPath(username),errMsg);
             throw errMsg;
         }
 
@@ -135,7 +145,11 @@ const setUserAdmin = function(admin,username){
     });
 }
 
- 
+/*** 
+ * @param {String} username
+ * @return {Boolean}
+ * @api public
+*/
 const remove = function (username){
     return co.brief(function*(resume){
 
@@ -169,7 +183,12 @@ const remove = function (username){
     });
 }
 
-
+/** 
+ * @param {String} username
+ * @param {String} virtualClusters
+ * @return {Boolean}
+ * @api public
+*/
 const updateUserVc = function(username,virtualClusters){
     return co.brief(function*(resume){
         if(!username){
@@ -234,7 +253,13 @@ const updateUserVc = function(username,virtualClusters){
 
     });
 }
- 
+
+/**
+ * @param {String} username
+ * @param {String} virtualCluster
+ * @return {Boolean}
+ * @api public
+ */
 const checkUserVc = function (username,virtualCluster){
     return co.brief(function*(resume){
 
@@ -285,7 +310,11 @@ const checkUserVc = function (username,virtualCluster){
 
 }
 
-const setDefaultAdmin = function(){
+/** 
+ * @return {Null}
+ * @api private
+*/
+const _setDefaultAdmin = function(){
     return co.brief(function*(resume){
 
        let status =  yield update(etcdConfig.adminName,etcdConfig.adminPass,true,false);
@@ -309,7 +338,7 @@ const prepareStoragePath = () => {
     if (errMsg) {
       throw new Error("build storage path failed");
     } else {
-      setDefaultAdmin()();
+      _setDefaultAdmin()();
     }
   });
 };
