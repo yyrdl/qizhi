@@ -22,38 +22,24 @@
 // The copyright owner promises to follow "Open-Intelligence Open Source Platform
 // Management Regulation V1.0", which is provided by The New Generation of
 // Artificial Intelligence Technology Innovation Strategic Alliance (the AITISA).
-const crypto = require("crypto");
-const config = require("../config");
-
-const dbUtility = require("../util/dbUtil");
-const etcdConfig = require("../config/etcd");
-const logger = require("../config/logger");
+ 
 
 // module dependencies
+
 const co = require("zco");
 const crypto = require("crypto");
 const config = require("../config");
 const etcd2 = require("../service/db").etcd2;
 const logger = require("../service/logger");
-const virtualCluster = require("./vc");
+const VirtualCluster = require("./vc");
 
 function encrypt(username, password) {
   return co.brief(function*(resume) {
     let iterations = 10000;
     let keylen = 64;
-    let salt = crypto
-      .createHash("md5")
-      .update(username)
-      .digest("hex");
+    let salt = crypto.createHash("md5").update(username).digest("hex");
 
-    let [err, derivedKey] = yield crypto.pbkdf2(
-      password,
-      salt,
-      iterations,
-      keylen,
-      "sha512",
-      resume
-    );
+    let [err, derivedKey] = yield crypto.pbkdf2(password,salt,iterations,keylen,"sha512",resume);
 
     if (err) {
       throw err; //修饰一下？
@@ -65,10 +51,12 @@ function encrypt(username, password) {
 
 const update = function(username, password, admin, modify) {
   return co.brief(function*(resume) {
+
     if (undefined == modify) {
       return false;
     }
-    let [errMsg, res] = yield etcd2.has(etcdConfig.userPath(username),null,resume );
+
+    let [errMsg, res] = yield etcd2.has(etcdConfig.userPath(username),null,resume);
 
     if (errMsg) {
       throw errMsg;
@@ -139,8 +127,9 @@ const setUserAdmin = function(admin,username){
             );
             throw errMsg;
         }
+
         return true;
-    })
+    });
 }
 
  
@@ -173,144 +162,147 @@ const remove = function (username){
             throw new Error("delete user failed");
         }
         return true;
-    })
+    });
+}
+
+
+const updateUserVc = function(username,virtualClusters){
+    return co.brief(function*(resume){
+        if(!username){
+            throw new Error("user does not exist")
+        }
+        let [errMsg,res] = yield etcd2.get(etcdConfig.userPath(username),null,resume);
+
+        if(errMsg){
+            logger.warn("user %s not exists", etcdConfig.userPath(username));
+            throw errMsg;
+        }
+
+        let vcList = yield VirtualCluster.getVcList();
+
+        if(!vcList){
+            return logger.warn("list virtual clusters error, no virtual cluster found");
+        }
+
+        let updateVcList = null;
+
+        if("true" == res.get(etcdConfig.userAdminPath(username))){
+            updateVcList = Object.keys(vcList);
+        }else{
+            updateVcList = virtualClusters.trim().split(",").filter(updateVc=> updateVc !=="");
+
+        }
+
+        let addUserWithInvalidVc = false;
+
+        let virtual_cluster_path = etcdConfig.userVirtualClusterPath(username);
+
+        for(let item of updateVcList){
+            if(!vcList.hasOwnProperty(item)){
+               if(!res.has(virtual_cluster_path)){
+                   updateVcList = [];
+                   addUserWithInvalidVc = true;
+                   break;
+               }else{
+                   throw new Error("InvalidVirtualCluster");
+               }
+            }
+        }
+
+        if(!updateVcList.includes("default")){
+            updateVcList.push("default");
+        }
+
+        updateVcList.sort();
+
+        [errMsg] = yield etcd2.set(etcdConfig.userVirtualClusterPath(username),updateVcList.toString(),null,resume);
+
+        if(errMsg){
+            logger.warn("update %s virtual cluster: %s failed, error message:%s",etcdConfig.userVirtualClusterPath(username),errMsg );
+
+            throw errMsg;
+        }
+
+        if(addUserWithInvalidVc){
+            throw new Error("InvalidVirtualCluster");
+        }
+
+        return true;
+
+    });
 }
  
+const checkUserVc = function (username,virtualCluster){
+    return co.brief(function*(resume){
 
-const updateUserVc = (username, virtualClusters, callback) => {
-  if (typeof username === "undefined") {
-    callback(new Error("user does not exist"), false);
-  } else {
-    db.get(etcdConfig.userPath(username), null, (errMsg, res) => {
-      if (errMsg) {
-        logger.warn("user %s not exists", etcdConfig.userPath(username));
-        callback(errMsg, false);
-      } else {
-        VirtualCluster.prototype.getVcList((vcList, err) => {
-          if (err) {
-            logger.warn("get virtual cluster list error\n%s", err.stack);
-          } else if (!vcList) {
-            logger.warn(
-              "list virtual clusters error, no virtual cluster found"
-            );
-          } else {
-            let updateVcList =
-              res.get(etcdConfig.userAdminPath(username)) === "true"
-                ? Object.keys(vcList)
-                : virtualClusters
-                    .trim()
-                    .split(",")
-                    .filter(updateVc => updateVc !== "");
-            let addUserWithInvalidVc = false;
-            for (let item of updateVcList) {
-              if (!vcList.hasOwnProperty(item)) {
-                if (!res.has(etcdConfig.userVirtualClusterPath(username))) {
-                  updateVcList.length = 0;
-                  addUserWithInvalidVc = true;
-                  break;
-                } else {
-                  return callback(new Error("InvalidVirtualCluster"), false);
-                }
-              }
-            }
-            if (!updateVcList.includes("default")) {
-              // always has 'default' queue
-              updateVcList.push("default");
-            }
-            updateVcList.sort();
-            db.set(
-              etcdConfig.userVirtualClusterPath(username),
-              updateVcList.toString(),
-              null,
-              (errMsg, res) => {
-                if (errMsg) {
-                  logger.warn(
-                    "update %s virtual cluster: %s failed, error message:%s",
-                    etcdConfig.userVirtualClusterPath(username),
-                    errMsg
-                  );
-                  callback(errMsg, false);
-                } else {
-                  if (addUserWithInvalidVc) {
-                    callback(new Error("InvalidVirtualCluster"), false);
-                  } else {
-                    callback(null, true);
-                  }
-                }
-              }
-            );
-          }
-        });
-      }
-    });
-  }
-};
-
-const checkUserVc = (username, virtualCluster, callback) => {
-  if (typeof username === "undefined") {
-    callback(new Error("user does not exist"), false);
-  } else {
-    virtualCluster = !virtualCluster ? "default" : virtualCluster;
-    if (virtualCluster === "default") {
-      callback(null, true); // all users have right access to 'default'
-    } else {
-      VirtualCluster.prototype.getVcList((vcList, err) => {
-        if (err) {
-          logger.warn("get virtual cluster list error\n%s", err.stack);
-        } else if (!vcList) {
-          logger.warn("list virtual clusters error, no virtual cluster found");
-        } else {
-          if (!vcList.hasOwnProperty(virtualCluster)) {
-            return callback(new Error("VirtualClusterNotFound"), false);
-          }
-          db.get(
-            etcdConfig.userVirtualClusterPath(username),
-            null,
-            (errMsg, res) => {
-              if (errMsg || !res) {
-                callback(errMsg, false);
-              } else {
-                let userVirtualClusters = res
-                  .get(etcdConfig.userVirtualClusterPath(username))
-                  .trim()
-                  .split(",");
-                for (let item of userVirtualClusters) {
-                  if (item === virtualCluster) {
-                    return callback(null, true);
-                  }
-                }
-                callback(new Error("NoRightAccessVirtualCluster"), false);
-              }
-            }
-          );
+        if(!username){
+            throw new  Error("user does not exist");
         }
-      });
-    }
-  }
-};
 
-const setDefaultAdmin = callback => {
-  update(
-    etcdConfig.adminName,
-    etcdConfig.adminPass,
-    true,
-    false,
-    (res, status) => {
-      if (!status) {
-        throw new Error("unable to set default admin");
-      } else {
-        updateUserVc(etcdConfig.adminName, "", (errMsg, res) => {
-          if (errMsg || !res) {
-            throw new Error("unable to set default admin virtual cluster");
-          }
-        });
-      }
-    }
-  );
-};
+        virtualCluster = !virtualCluster ? "default" : virtualCluster;
+
+        if("default" === virtualCluster){
+            return true;
+        }
+
+        let vcList = yield VirtualCluster.getVcList();
+
+        if(!vcList){
+            return  logger.warn("list virtual clusters error, no virtual cluster found");
+        }
+        if (!vcList.hasOwnProperty(virtualCluster)) {
+            throw new Error("VirtualClusterNotFound");
+        }
+
+        let [errMsg,res] = yield etcd2.get(etcdConfig.userVirtualClusterPath(username),null,resume);
+        /*** 
+         *TODO:这里错误的 信息不够详细
+        */
+        if(errMsg || !res){
+           throw errMsg;
+        }
+        let userVirtualClusters = res.get(etcdConfig.userVirtualClusterPath(username)).trim().split(",");
+
+        let found = false;
+
+        for (let item of userVirtualClusters) {
+            if (item === virtualCluster) {
+               found = true;
+               break;
+            }
+        }
+
+        if(found){
+            return true;
+        }
+
+        throw new Error("NoRightAccessVirtualCluster");
+
+    });
+
+}
+
+const setDefaultAdmin = function(){
+    return co.brief(function*(resume){
+
+       let status =  yield update(etcdConfig.adminName,etcdConfig.adminPass,true,false);
+
+       if(!status){
+           throw new Error("unable to set default admin");
+       }
+
+       let [errMsg,res] = yield updateUserVc(etcdConfig.adminName,"",resume);
+
+       if(!errMsg || !res){
+           throw new Error("unable to set default admin virtual cluster");
+       }
+    });
+}
+
+ 
 
 const prepareStoragePath = () => {
-  db.set(etcdConfig.storagePath(), null, { dir: true }, (errMsg, res) => {
+  etcd2.set(etcdConfig.storagePath(), null, { dir: true }, (errMsg, res) => {
     if (errMsg) {
       throw new Error("build storage path failed");
     } else {
@@ -320,7 +312,7 @@ const prepareStoragePath = () => {
 };
 
 if (config.env !== "test") {
-  db.has(etcdConfig.storagePath(), null, (errMsg, res) => {
+  etcd2.has(etcdConfig.storagePath(), null, (errMsg, res) => {
     if (!res) {
       prepareStoragePath();
     } else {
@@ -330,4 +322,4 @@ if (config.env !== "test") {
 }
 
 // module exports
-module.exports = { encrypt, db, update, remove, updateUserVc, checkUserVc };
+module.exports = { encrypt, update, remove, updateUserVc, checkUserVc };
